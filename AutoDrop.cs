@@ -6,7 +6,7 @@ using Rust;
 
 namespace Oxide.Plugins
 {
-    [Info("AutoDrop", "Hazmad", "1.0.0")]
+    [Info("AutoDrop", "Hazmad", "1.0.1")]
     [Description("Configurable filter for automatically dropping items from a player's inventory / on pickup.")]
     class AutoDrop : RustPlugin
     {
@@ -48,7 +48,8 @@ namespace Oxide.Plugins
                     List<int> itemIDs = new List<int>();
                     foreach (string arg in args)
                     {
-                        if (int.TryParse(arg, out int itemID))
+                        int itemID;
+                        if (int.TryParse(arg, out itemID))
                         {
                             itemIDs.Add(itemID);
                         }
@@ -78,14 +79,19 @@ namespace Oxide.Plugins
 
         private void OnPlayerLootEnd(PlayerLoot playerLoot)
         {
-            if (autoDropItems.TryGetValue(playerLoot.gameObject.GetComponent<BasePlayer>().userID, out List<int> itemIDs))
+            List<int> itemIDs;
+            if (autoDropItems.TryGetValue(playerLoot.gameObject.GetComponent<BasePlayer>().userID, out itemIDs))
             {
                 ItemContainer mainInventory = playerLoot.GetComponent<PlayerInventory>().containerMain;
                 ItemContainer wearInventory = playerLoot.GetComponent<PlayerInventory>().containerWear;
 
+                List<Item> mainInventoryItems = new List<Item>(mainInventory.itemList);
+                List<Item> wearInventoryItems = new List<Item>(wearInventory.itemList);
+
                 // Check main inventory
-                foreach (Item item in mainInventory.itemList)
+                for (int i = 0; i < mainInventoryItems.Count; i++)
                 {
+                    Item item = mainInventoryItems[i];
                     if (itemIDs.Contains(item.info.itemid))
                     {
                         item.Drop(playerLoot.gameObject.transform.position, playerLoot.gameObject.transform.forward * 2f);
@@ -93,8 +99,9 @@ namespace Oxide.Plugins
                 }
 
                 // Check wear (equipment) inventory
-                foreach (Item item in wearInventory.itemList)
+                for (int i = 0; i < wearInventoryItems.Count; i++)
                 {
+                    Item item = wearInventoryItems[i];
                     if (itemIDs.Contains(item.info.itemid))
                     {
                         item.Drop(playerLoot.gameObject.transform.position, playerLoot.gameObject.transform.forward * 2f);
@@ -102,7 +109,5 @@ namespace Oxide.Plugins
                 }
             }
         }
-
-
     }
 }
