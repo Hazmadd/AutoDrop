@@ -6,11 +6,11 @@ using Rust;
 
 namespace Oxide.Plugins
 {
-    [Info("AutoDrop", "Hazmad", "1.0.1")]
+    [Info("AutoDrop", "Hazmad", "1.0.3")]
     [Description("Configurable filter for automatically dropping items from a player's inventory / on pickup.")]
     class AutoDrop : RustPlugin
     {
-        private Dictionary<ulong, List<int>> autoDropItems = new Dictionary<ulong, List<int>>();
+        private Dictionary<ulong, List<string>> autoDropItems = new Dictionary<ulong, List<string>>();
 
         protected override void LoadDefaultConfig()
         {
@@ -20,7 +20,7 @@ namespace Oxide.Plugins
 
         private void LoadData()
         {
-            autoDropItems = Interface.Oxide.DataFileSystem.ReadObject<Dictionary<ulong, List<int>>>("AutoDropItems");
+            autoDropItems = Interface.Oxide.DataFileSystem.ReadObject<Dictionary<ulong, List<string>>>("AutoDropItems");
         }
 
         private void SaveData()
@@ -31,6 +31,7 @@ namespace Oxide.Plugins
         private void OnServerInitialized()
         {
             LoadData();
+            permission.RegisterPermission("autodrop.use", this);
         }
 
         private void Unload()
@@ -45,30 +46,30 @@ namespace Oxide.Plugins
             {
                 if (args.Length > 0)
                 {
-                    List<int> itemIDs = new List<int>();
+                    List<string> itemShortnames = new List<string>();
                     foreach (string arg in args)
                     {
-                        int itemID;
-                        if (int.TryParse(arg, out itemID))
+                        ItemDefinition itemDef = ItemManager.FindItemDefinition(arg.ToLower());
+                        if (itemDef != null)
                         {
-                            itemIDs.Add(itemID);
+                            itemShortnames.Add(itemDef.shortname);
                         }
                     }
 
-                    if (itemIDs.Count > 0)
+                    if (itemShortnames.Count > 0)
                     {
-                        autoDropItems[player.userID] = itemIDs;
+                        autoDropItems[player.userID] = itemShortnames;
                         SaveData();
                         player.ChatMessage("AutoDrop: Items registered for automatic drop.");
                     }
                     else
                     {
-                        player.ChatMessage("AutoDrop: Invalid item IDs provided.");
+                        player.ChatMessage("AutoDrop: Invalid item shortnames provided.");
                     }
                 }
                 else
                 {
-                    player.ChatMessage("AutoDrop: Usage: /autodrop <itemID1> <itemID2> ...");
+                    player.ChatMessage("AutoDrop: Usage: /autodrop <itemShortname1> <itemShortname2> ...");
                 }
             }
             else
@@ -77,34 +78,16 @@ namespace Oxide.Plugins
             }
         }
 
-        private void OnPlayerLootEnd(PlayerLoot playerLoot)
+        private void OnItemAddedToContainer(ItemContainer container, Item item)
         {
-            List<int> itemIDs;
-            if (autoDropItems.TryGetValue(playerLoot.gameObject.GetComponent<BasePlayer>().userID, out itemIDs))
+            if (container.playerOwner != null)
             {
-                ItemContainer mainInventory = playerLoot.GetComponent<PlayerInventory>().containerMain;
-                ItemContainer wearInventory = playerLoot.GetComponent<PlayerInventory>().containerWear;
-
-                List<Item> mainInventoryItems = new List<Item>(mainInventory.itemList);
-                List<Item> wearInventoryItems = new List<Item>(wearInventory.itemList);
-
-                // Check main inventory
-                for (int i = 0; i < mainInventoryItems.Count; i++)
+                List<string> itemShortnames;
+                if (autoDropItems.TryGetValue(container.playerOwner.userID, out itemShortnames))
                 {
-                    Item item = mainInventoryItems[i];
-                    if (itemIDs.Contains(item.info.itemid))
+                    if (itemShortnames.Contains(item.info.shortname))
                     {
-                        item.Drop(playerLoot.gameObject.transform.position, playerLoot.gameObject.transform.forward * 2f);
-                    }
-                }
-
-                // Check wear (equipment) inventory
-                for (int i = 0; i < wearInventoryItems.Count; i++)
-                {
-                    Item item = wearInventoryItems[i];
-                    if (itemIDs.Contains(item.info.itemid))
-                    {
-                        item.Drop(playerLoot.gameObject.transform.position, playerLoot.gameObject.transform.forward * 2f);
+                        item.Drop(container.playerOwner.transform.position, container.playerOwner.transform.forward * 2f);
                     }
                 }
             }
